@@ -6,7 +6,8 @@ set -eu
   <% if p("bpm.enabled") %>
 /var/vcap/jobs/bpm/bin/bpm run s3-versioned-blobstore-backup-restorer \
   -p restore \
-  -v "$BBR_ARTIFACT_DIRECTORY%/"
+  -v "${BBR_ARTIFACT_DIRECTORY%/}" \
+  -e BBR_ARTIFACT_DIRECTORY="$BBR_ARTIFACT_DIRECTORY"
   <% else %>
 /var/vcap/jobs/s3-versioned-blobstore-backup-restorer/bin/bbr/run_restore
   <% end %>
