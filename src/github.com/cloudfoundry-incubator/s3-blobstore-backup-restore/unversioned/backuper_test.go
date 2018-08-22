@@ -5,6 +5,7 @@ import (
 
 	"errors"
 
+	s3fakes "github.com/cloudfoundry-incubator/s3-blobstore-backup-restore/s3/fakes"
 	"github.com/cloudfoundry-incubator/s3-blobstore-backup-restore/unversioned"
 	"github.com/cloudfoundry-incubator/s3-blobstore-backup-restore/unversioned/fakes"
 	. "github.com/onsi/ginkgo"
@@ -86,6 +87,33 @@ var _ = Describe("Backuper", func() {
 			By("not saving an artifact", func() {
 				Expect(artifact.SaveCallCount()).To(Equal(0))
 			})
+		})
+	})
+
+	Context("when any of the the BackupBuckets is the same as any live bucket", func() {
+		BeforeEach(func() {
+			dropletLiveBucket := new(s3fakes.FakeUnversionedBucket)
+			dropletBackupBucket := new(s3fakes.FakeUnversionedBucket)
+			//dropletBucketPair := unversioned.NewS3BucketPair(dropletLiveBucket, dropletBackupBucket, execution.NewParallelStrategy())
+
+			dropletLiveBucket.NameReturns("liveBucket")
+			dropletLiveBucket.RegionNameReturns("liveBucketRegion")
+			dropletBackupBucket.NameReturns("backupBucket")
+			dropletBackupBucket.RegionNameReturns("backupBucketRegion")
+
+			buildpacksLiveBucket := new(s3fakes.FakeUnversionedBucket)
+			buildpacksBackupBucket := new(s3fakes.FakeUnversionedBucket)
+			//buildpacksBucketPair := unversioned.NewS3BucketPair(dropletLiveBucket, dropletBackupBucket, execution.NewParallelStrategy())
+
+			buildpacksLiveBucket.NameReturns("liveBucket")
+			buildpacksLiveBucket.RegionNameReturns("liveBucketRegion")
+			buildpacksBackupBucket.NameReturns("backupBucket")
+			buildpacksBackupBucket.RegionNameReturns("backupBucketRegion")
+
+		})
+
+		It("returns a useful error", func() {
+
 		})
 	})
 
