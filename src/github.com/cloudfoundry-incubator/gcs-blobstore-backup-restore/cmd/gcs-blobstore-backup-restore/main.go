@@ -20,7 +20,7 @@ func main() {
 		log.Fatal("missing --backup, --drain, or --restore flag")
 	}
 
-	if *backupAction || *drainAction && *restoreAction {
+	if (*backupAction && *drainAction) || (*backupAction && *restoreAction) || (*drainAction && *restoreAction) {
 		log.Fatal("only one of: --backup, --drain, or --restore can be provided")
 	}
 

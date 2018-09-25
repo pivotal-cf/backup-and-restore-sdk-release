@@ -20,19 +20,32 @@ func (r Restorer) Drain(backups map[string]BucketBackup) error {
 	for bucketIdentifier := range backups {
 		_, exists := r.bucketPairs[bucketIdentifier]
 		if !exists {
-			return fmt.Errorf("bucket identifier '%s' not found in bucketPairs configuration", bucketIdentifier)
+			return fmt.Errorf("bucket identifier '%s' not found in bucket configuration", bucketIdentifier)
 		}
 	}
 
 	for bucketIdentifier, backup := range backups {
-		bucket := r.bucketPairs[bucketIdentifier]
+		bucketPair := r.bucketPairs[bucketIdentifier]
+
+		blobs, err := bucketPair.backupBucket.ListBlobs()
+		if err != nil {
+			return err
+		}
+
+		blobNames := make(map[string]bool)
+		for _, blob := range blobs {
+			blobNames[blob.Name] = true
+		}
 
 		errs := r.executionStrategy.Run(backup.Blobs, func(blob Blob) error {
-			return bucket.backupBucket.CopyVersion(blob, backup.LiveBucketName)
+			if blobNames[blob.Name] {
+				return nil
+			}
+			return bucketPair.backupBucket.CopyVersion(blob, backup.LiveBucketName)
 		})
 
 		if len(errs) != 0 {
-			return formatErrors(fmt.Sprintf("failed to drain bucket '%s'", bucket.liveBucket.Name()), errs)
+			return formatErrors(fmt.Sprintf("failed to drain bucket '%s'", bucketPair.liveBucket.Name()), errs)
 		}
 	}
 
