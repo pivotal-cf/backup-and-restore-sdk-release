@@ -1,0 +1,39 @@
+---
+name: gcs-spike-backuper
+
+releases:
+- name: backup-and-restore-sdk
+  version: latest
+
+stemcells:
+- alias: xenial
+  os: ubuntu-xenial
+  version: latest
+
+instance_groups:
+- name: gcs-spike-backuper
+  instances: 1
+  vm_type: small
+  persistent_disk_type: 10GB
+  stemcell: xenial
+  update:
+    serial: true
+  networks:
+  - name: default
+  azs: [z1]
+  jobs:
+  - name: gcs-blobstore-backup-restorer
+    release: backup-and-restore-sdk
+    properties:
+      enabled: true
+      buckets:
+        droplets:
+          live_bucket_name: gcs-spike-live-bucket
+          backup_bucket_name: gcs-spike-backup-bucket
+          gcp_service_account_key: 'FILL ME'
+
+update:
+  canaries: 1
+  max_in_flight: 1
+  canary_watch_time: 30000
+  update_watch_time: 30000
