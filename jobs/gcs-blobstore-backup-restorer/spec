@@ -20,7 +20,10 @@ name: gcs-blobstore-backup-restorer
 templates:
   backup.erb: bin/bbr/backup
   restore.erb: bin/bbr/restore
+  pre-backup-lock.erb: bin/bbr/pre-backup-lock
+  post-backup-unlock.erb: bin/bbr/post-backup-unlock
   buckets.json.erb: config/buckets.json
+  metadata.erb: bin/bbr/metadata
 
 packages:
 - gcs-blobstore-backup-restorer

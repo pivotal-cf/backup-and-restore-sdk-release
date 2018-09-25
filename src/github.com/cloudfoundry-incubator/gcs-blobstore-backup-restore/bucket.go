@@ -20,15 +20,29 @@ type Bucket interface {
 	CopyVersion(blob Blob, sourceBucketName string) error
 }
 
-func BuildBuckets(config map[string]Config) (map[string]Bucket, error) {
-	buckets := map[string]Bucket{}
+type BucketPair struct {
+	liveBucket   Bucket
+	backupBucket Bucket
+}
+
+func BuildBuckets(config map[string]Config) (map[string]BucketPair, error) {
+	buckets := map[string]BucketPair{}
 
 	var err error
-	for bucketId, bucketConfig := range config {
-		buckets[bucketId], err = NewSDKBucket(bucketConfig.ServiceAccountKey, bucketConfig.Name)
+	for bucketPairId, bucketConfig := range config {
+		var liveBucket Bucket
+		var backupBucket Bucket
+		liveBucket, err = NewSDKBucket(bucketConfig.ServiceAccountKey, bucketConfig.LiveBucketName)
 		if err != nil {
 			return nil, err
 		}
+		backupBucket, err = NewSDKBucket(bucketConfig.ServiceAccountKey, bucketConfig.BackupBucketName)
+		if err != nil {
+			return nil, err
+		}
+
+		buckets[bucketPairId] = BucketPair{liveBucket: liveBucket, backupBucket: backupBucket}
+
 	}
 
 	return buckets, nil
@@ -40,8 +54,9 @@ type Blob struct {
 }
 
 type BucketBackup struct {
-	Name  string `json:"name"`
-	Blobs []Blob `json:"blobs"`
+	LiveBucketName   string `json:"live_bucket_name"`
+	BackupBucketName string `json:"backup_bucket_name"`
+	Blobs            []Blob `json:"blobs"`
 }
 
 type SDKBucket struct {

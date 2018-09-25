@@ -11,22 +11,23 @@ func main() {
 	artifactPath := flag.String("artifact-file", "", "Path to the artifact file")
 	configPath := flag.String("config", "", "Path to JSON config file")
 	backupAction := flag.Bool("backup", false, "Run blobstore backup")
+	drainAction := flag.Bool("drain", false, "Run blobstore drain")
 	restoreAction := flag.Bool("restore", false, "Run blobstore restore")
 
 	flag.Parse()
 
-	if !*backupAction && !*restoreAction {
-		log.Fatal("missing --backup or --restore flag")
+	if !(*backupAction || *drainAction || *restoreAction) {
+		log.Fatal("missing --backup, --drain, or --restore flag")
 	}
 
-	if *backupAction && *restoreAction {
-		log.Fatal("only one of: --backup or --restore can be provided")
+	if *backupAction || *drainAction && *restoreAction {
+		log.Fatal("only one of: --backup, --drain, or --restore can be provided")
 	}
 
 	config, err := gcs.ParseConfig(*configPath)
 	exitOnError(err)
 
-	buckets, err := gcs.BuildBuckets(config)
+	bucketPairs, err := gcs.BuildBuckets(config)
 	exitOnError(err)
 
 	artifact := gcs.NewArtifact(*artifactPath)
@@ -34,15 +35,23 @@ func main() {
 	executionStrategy := gcs.NewParallelStrategy()
 
 	if *backupAction {
-		backuper := gcs.NewBackuper(buckets)
+		backuper := gcs.NewBackuper(bucketPairs)
 
 		backups, err := backuper.Backup()
 		exitOnError(err)
 
 		err = artifact.Write(backups)
 		exitOnError(err)
+	} else if *drainAction {
+		drainer := gcs.NewDrainer(bucketPairs, executionStrategy)
+
+		backups, err := artifact.Read()
+		exitOnError(err)
+
+		err = drainer.Drain(backups)
+		exitOnError(err)
 	} else {
-		restorer := gcs.NewRestorer(buckets, executionStrategy)
+		restorer := gcs.NewRestorer(bucketPairs, executionStrategy)
 
 		backups, err := artifact.Read()
 		exitOnError(err)

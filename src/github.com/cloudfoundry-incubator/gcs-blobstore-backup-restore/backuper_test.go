@@ -90,7 +90,7 @@ var _ = Describe("Backuper", func() {
 		})
 	})
 
-	Context("when one of the buckets does not have versioning enabled", func() {
+	Context("when one of the bucketPairs does not have versioning enabled", func() {
 		It("returns an error", func() {
 			secondBucket.VersioningEnabledReturns(false, nil)
 

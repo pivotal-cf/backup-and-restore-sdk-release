@@ -1,42 +1,28 @@
 package gcs
 
-import (
-	"fmt"
-)
-
 type Backuper struct {
-	buckets map[string]Bucket
+	bucketPairs map[string]BucketPair
 }
 
-func NewBackuper(buckets map[string]Bucket) Backuper {
+func NewBackuper(bucketPairs map[string]BucketPair) Backuper {
 	return Backuper{
-		buckets: buckets,
+		bucketPairs: bucketPairs,
 	}
 }
 
 func (b *Backuper) Backup() (map[string]BucketBackup, error) {
 	bucketBackups := map[string]BucketBackup{}
 
-	for _, bucket := range b.buckets {
-		enabled, err := bucket.VersioningEnabled()
-		if err != nil {
-			return nil, err
-		}
-
-		if !enabled {
-			return nil, fmt.Errorf("versioning is not enabled on bucket: %s", bucket.Name())
-		}
-	}
-
-	for bucketIdentifier, bucket := range b.buckets {
-		blobs, err := bucket.ListBlobs()
+	for bucketIdentifier, bucketPair := range b.bucketPairs {
+		blobs, err := bucketPair.liveBucket.ListBlobs()
 		if err != nil {
 			return nil, err
 		}
 
 		bucketBackups[bucketIdentifier] = BucketBackup{
-			Name:  bucket.Name(),
-			Blobs: blobs,
+			LiveBucketName:   bucketPair.liveBucket.Name(),
+			BackupBucketName: bucketPair.backupBucket.Name(),
+			Blobs:            blobs,
 		}
 	}
 

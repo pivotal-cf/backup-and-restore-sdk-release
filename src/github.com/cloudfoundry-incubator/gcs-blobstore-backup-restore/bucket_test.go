@@ -11,7 +11,7 @@ import (
 
 var _ = Describe("Bucket", func() {
 	Describe("BuildBuckets", func() {
-		It("builds buckets", func() {
+		It("builds bucketPairs", func() {
 			config := map[string]gcs.Config{
 				"droplets": {
 					Name:              "droplets-bucket",

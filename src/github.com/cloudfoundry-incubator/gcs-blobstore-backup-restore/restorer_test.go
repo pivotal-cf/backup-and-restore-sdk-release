@@ -176,7 +176,7 @@ var _ = Describe("Restorer", func() {
 
 			err := restorer.Restore(backups)
 
-			Expect(err).To(MatchError(fmt.Sprintf("bucket identifier '%s' not found in buckets configuration", bucketIdentifier)))
+			Expect(err).To(MatchError(fmt.Sprintf("bucket identifier '%s' not found in bucketPairs configuration", bucketIdentifier)))
 		})
 
 		It("does not check versioning or restore blobs", func() {
@@ -203,7 +203,7 @@ var _ = Describe("Restorer", func() {
 
 			err := restorer.Restore(backups)
 
-			Expect(err).To(MatchError(fmt.Sprintf("bucket identifier '%s' not found in buckets configuration", bucketIdentifier)))
+			Expect(err).To(MatchError(fmt.Sprintf("bucket identifier '%s' not found in bucketPairs configuration", bucketIdentifier)))
 			Expect(firstBucket.CopyVersionCallCount()).To(Equal(0))
 			Expect(secondBucket.CopyVersionCallCount()).To(Equal(0))
 			Expect(firstBucket.VersioningEnabledCallCount()).To(Equal(0))
