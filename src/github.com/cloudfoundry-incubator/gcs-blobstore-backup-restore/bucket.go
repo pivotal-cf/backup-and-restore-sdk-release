@@ -2,6 +2,7 @@ package gcs
 
 import (
 	"fmt"
+	"strings"
 
 	"cloud.google.com/go/storage"
 	"golang.org/x/net/context"
@@ -18,6 +19,10 @@ type Bucket interface {
 	VersioningEnabled() (bool, error)
 	ListBlobs() ([]Blob, error)
 	CopyVersion(blob Blob, sourceBucketName string) error
+	LastBackupPrefix() (string, error)
+	ListLastBackupBlobs() ([]Blob, error)
+	ListPenultimateBackupBlobs() ([]Blob, error)
+	CopyBlob(destinationBucket Bucket, prefix string, blob Blob) error
 }
 
 type BucketPair struct {
@@ -32,11 +37,11 @@ func BuildBuckets(config map[string]Config) (map[string]BucketPair, error) {
 	for bucketPairId, bucketConfig := range config {
 		var liveBucket Bucket
 		var backupBucket Bucket
-		liveBucket, err = NewSDKBucket(bucketConfig.ServiceAccountKey, bucketConfig.LiveBucketName)
+		liveBucket, err = NewSDKBucket(bucketConfig.ServiceAccountKey, bucketConfig.LiveBucketName, bucketPairId)
 		if err != nil {
 			return nil, err
 		}
-		backupBucket, err = NewSDKBucket(bucketConfig.ServiceAccountKey, bucketConfig.BackupBucketName)
+		backupBucket, err = NewSDKBucket(bucketConfig.ServiceAccountKey, bucketConfig.BackupBucketName, bucketPairId)
 		if err != nil {
 			return nil, err
 		}
@@ -50,7 +55,15 @@ func BuildBuckets(config map[string]Config) (map[string]BucketPair, error) {
 
 type Blob struct {
 	Name         string `json:"name"`
-	GenerationID int64  `json:"generation_id"`
+	Prefix       string
+	GenerationID int64 `json:"generation_id"`
+}
+
+func (b Blob) Path() string {
+	if b.Prefix != "" {
+		return b.Prefix + "/" + b.Name
+	}
+	return b.Name
 }
 
 type BucketBackup struct {
@@ -60,13 +73,134 @@ type BucketBackup struct {
 }
 
 type SDKBucket struct {
-	name   string
-	handle *storage.BucketHandle
-	ctx    context.Context
-	client *storage.Client
+	name       string
+	handle     *storage.BucketHandle
+	ctx        context.Context
+	client     *storage.Client
+	identifier string
 }
 
-func NewSDKBucket(serviceAccountKeyJson string, name string) (SDKBucket, error) {
+func (b SDKBucket) CopyBlob(destinationBucket Bucket, prefix string, blob Blob) error {
+	ctx := context.Background()
+
+	sourceObjectHandle := b.handle.Object(blob.Path())
+	destinationName := fmt.Sprintf("%s/%s", prefix, blob.Name)
+
+	copier := b.client.Bucket(destinationBucket.Name()).Object(destinationName).CopierFrom(sourceObjectHandle)
+	_, err := copier.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("error copying blob 'gs://%s/%s': %s", b.name, blob.Path(), err)
+	}
+
+	return nil
+}
+
+func (b SDKBucket) LastBackupPrefix() (string, error) {
+	list, err := b.ListBlobs()
+	if err != nil {
+		return "", err
+	}
+
+	if len(list) == 0 {
+		return "", nil
+	}
+	latestBlob := list[len(list)-1] //maybe
+	parts := strings.Split(latestBlob.Path(), b.identifier)
+
+	return fmt.Sprintf("%s%s", parts[0], b.identifier), nil
+}
+
+func (b SDKBucket) ListLastBackupBlobs() ([]Blob, error) {
+	prefix, err := b.LastBackupPrefix()
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("Last backup prefix: '%s'\n", prefix)
+
+	if prefix == "" {
+		return []Blob{}, nil
+	}
+
+	var blobs []Blob
+	objectsIterator := b.handle.Objects(b.ctx, &storage.Query{
+		Delimiter: prefix,
+		Prefix:    prefix,
+	})
+	for {
+		objectAttributes, err := objectsIterator.Next()
+		if err == iterator.Done {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Printf("found last backup blob: '%s', prefix: '%s'\n", objectAttributes.Name, objectAttributes.Prefix)
+		name := strings.TrimPrefix(objectAttributes.Name, prefix+"/")
+
+		blobs = append(blobs, Blob{Name: name, Prefix: prefix, GenerationID: objectAttributes.Generation})
+	}
+
+	return blobs, nil
+}
+
+func (b SDKBucket) ListPenultimateBackupBlobs() ([]Blob, error) {
+	list, err := b.ListBlobs()
+	if err != nil {
+		return nil, err
+	}
+
+	prefix := b.getPrefixFromAgesAgo(list)
+	if prefix == "" {
+		return []Blob{}, nil
+	}
+
+	var blobs []Blob
+	objectsIterator := b.handle.Objects(b.ctx, &storage.Query{
+		Delimiter: prefix,
+		Prefix:    prefix,
+	})
+	for {
+		objectAttributes, err := objectsIterator.Next()
+		if err == iterator.Done {
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Printf("found last backup blob: '%s', prefix: '%s'\n", objectAttributes.Name, objectAttributes.Prefix)
+		name := strings.TrimPrefix(objectAttributes.Name, prefix+"/")
+
+		blobs = append(blobs, Blob{Name: name, Prefix: prefix, GenerationID: objectAttributes.Generation})
+	}
+
+	return blobs, nil
+}
+
+func (b SDKBucket) getPrefixFromAgesAgo(list []Blob) string {
+	if len(list) == 0 {
+		return ""
+	}
+
+	latestBlob := list[len(list)-1]
+	parts := strings.Split(latestBlob.Path(), b.identifier)
+	latestPrefix := fmt.Sprintf("%s%s", parts[0], b.identifier)
+
+	for i := len(list) - 2; i >= 0; i-- {
+		blob := list[i]
+		if !strings.HasPrefix(blob.Name, latestPrefix) {
+			parts := strings.Split(blob.Path(), b.identifier)
+			return fmt.Sprintf("%s%s", parts[0], b.identifier)
+		}
+	}
+
+	return ""
+}
+
+func NewSDKBucket(serviceAccountKeyJson, name, identifier string) (SDKBucket, error) {
 	ctx := context.Background()
 
 	creds, err := google.CredentialsFromJSON(ctx, []byte(serviceAccountKeyJson), readWriteScope)
@@ -81,7 +215,7 @@ func NewSDKBucket(serviceAccountKeyJson string, name string) (SDKBucket, error) 
 
 	handle := client.Bucket(name)
 
-	return SDKBucket{name: name, handle: handle, ctx: ctx, client: client}, nil
+	return SDKBucket{name: name, identifier: identifier, handle: handle, ctx: ctx, client: client}, nil
 }
 
 func (b SDKBucket) Name() string {
@@ -123,7 +257,7 @@ func (b SDKBucket) CopyVersion(blob Blob, sourceBucketName string) error {
 	sourceObjectHandle := b.client.Bucket(sourceBucketName).Object(blob.Name)
 	_, err := sourceObjectHandle.Generation(blob.GenerationID).Attrs(ctx)
 	if err != nil {
-		return fmt.Errorf("error getting blob version attributes 'gs://%s/%s#%d': %s", sourceBucketName, blob.Name, blob.GenerationID, err)
+		return fmt.Errorf("error getting blob version attributes 'gs://%s/%s#%d': %s", sourceBucketName, blob.Path(), blob.GenerationID, err)
 	}
 
 	if b.name == sourceBucketName {
@@ -138,7 +272,7 @@ func (b SDKBucket) CopyVersion(blob Blob, sourceBucketName string) error {
 	copier := b.handle.Object(blob.Name).CopierFrom(source)
 	_, err = copier.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("error copying blob 'gs://%s/%s#%d': %s", sourceBucketName, blob.Name, blob.GenerationID, err)
+		return fmt.Errorf("error copying blob 'gs://%s/%s#%d': %s", sourceBucketName, blob.Path(), blob.GenerationID, err)
 	}
 
 	return nil

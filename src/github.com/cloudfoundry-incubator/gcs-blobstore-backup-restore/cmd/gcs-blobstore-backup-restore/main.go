@@ -37,18 +37,12 @@ func main() {
 	if *backupAction {
 		backuper := gcs.NewBackuper(bucketPairs)
 
-		backups, err := backuper.Backup()
-		exitOnError(err)
-
-		err = artifact.Write(backups)
+		err := backuper.Backup()
 		exitOnError(err)
 	} else if *drainAction {
 		drainer := gcs.NewDrainer(bucketPairs, executionStrategy)
 
-		backups, err := artifact.Read()
-		exitOnError(err)
-
-		err = drainer.Drain(backups)
+		err = drainer.Drain()
 		exitOnError(err)
 	} else {
 		restorer := gcs.NewRestorer(bucketPairs, executionStrategy)

@@ -3,7 +3,8 @@ name: gcs-spike-backuper
 
 releases:
 - name: backup-and-restore-sdk
-  version: latest
+  version: create
+  url: /Users/pivotal/workspace/backup-and-restore-sdk-release
 
 stemcells:
 - alias: xenial
