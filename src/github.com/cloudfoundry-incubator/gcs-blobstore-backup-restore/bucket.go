@@ -2,6 +2,7 @@ package gcs
 
 import (
 	"fmt"
+	"log"
 	"path"
 	"strings"
 
@@ -112,13 +113,13 @@ func (b SDKBucket) LastBackupPrefix() (string, error) {
 			return "", err
 		}
 
-		fmt.Printf("found last backup directory: '%s', prefix: '%s'\n", objectAttributes.Name, objectAttributes.Prefix)
+		log.Printf("found last backup directory: '%s', prefix: '%s'\n", objectAttributes.Name, objectAttributes.Prefix)
 
 		directories = append(directories, objectAttributes.Prefix)
 	}
 
 	if len(directories) == 0 {
-		fmt.Println("no last backup directory found")
+		log.Println("no last backup directory found")
 		return "", nil
 	}
 	latestDirectory := directories[len(directories)-1]
