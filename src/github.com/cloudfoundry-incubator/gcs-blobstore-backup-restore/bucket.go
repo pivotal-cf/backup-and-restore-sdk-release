@@ -2,6 +2,7 @@ package gcs
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"cloud.google.com/go/storage"
@@ -96,18 +97,33 @@ func (b SDKBucket) CopyBlob(destinationBucket Bucket, prefix string, blob Blob) 
 }
 
 func (b SDKBucket) LastBackupPrefix() (string, error) {
-	list, err := b.ListBlobs()
-	if err != nil {
-		return "", err
+	var directories []string
+	objectsIterator := b.handle.Objects(b.ctx, &storage.Query{
+		Delimiter: "/",
+		Prefix:    "",
+	})
+	for {
+		objectAttributes, err := objectsIterator.Next()
+		if err == iterator.Done {
+			break
+		}
+
+		if err != nil {
+			return "", err
+		}
+
+		fmt.Printf("found last backup directory: '%s', prefix: '%s'\n", objectAttributes.Name, objectAttributes.Prefix)
+
+		directories = append(directories, objectAttributes.Prefix)
 	}
 
-	if len(list) == 0 {
+	if len(directories) == 0 {
+		fmt.Println("no last backup directory found")
 		return "", nil
 	}
-	latestBlob := list[len(list)-1] //maybe
-	parts := strings.Split(latestBlob.Path(), b.identifier)
+	latestDirectory := directories[len(directories)-1]
 
-	return fmt.Sprintf("%s%s", parts[0], b.identifier), nil
+	return path.Join(latestDirectory, b.identifier), nil
 }
 
 func (b SDKBucket) ListLastBackupBlobs() ([]Blob, error) {
