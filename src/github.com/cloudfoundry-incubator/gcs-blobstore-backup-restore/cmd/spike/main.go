@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"os"
 
@@ -34,22 +33,23 @@ func main() {
 	}
 
 	log.Println("listing last backup path blobs...")
-	backupBlobs, err := liveBucket.ListBlobs()
+	previousBackupBlobs, err := liveBucket.ListBlobs()
 
 	log.Println("creating delta of blobs...")
-	currentBlobNames := make(map[string]bool)
-	for _, blob := range backupBlobs {
-		currentBlobNames[blob.Name] = true
+	alreadyBackedUp := make(map[string]bool)
+	for _, blob := range previousBackupBlobs {
+		alreadyBackedUp[blob.Name] = false
 	}
 
 	executionStrategy := gcs.NewParallelStrategy()
 
 	log.Println("starting to copy delta blobs...")
-	errs := executionStrategy.Run(liveBlobs, func(blob gcs.Blob) error {
-		if currentBlobNames[blob.Name] {
+	errs := executionStrategy.Run(liveBlobs[1:70000], func(blob gcs.Blob) error {
+		if alreadyBackedUp[blob.Name] {
 			return nil
 		}
-		return errors.New("should not be here, live blobs != backup blobs")
+
+		return liveBucket.CopyBlob(liveBucket, "snapshot2", blob)
 	})
 
 	if len(errs) != 0 {
