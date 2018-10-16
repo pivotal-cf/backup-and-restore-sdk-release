@@ -79,16 +79,17 @@ type FakeBucket struct {
 	deleteBlobReturnsOnCall map[int]struct {
 		result1 error
 	}
-	CreateDirectoryStub        func(name string) (int64, error)
-	createDirectoryMutex       sync.RWMutex
-	createDirectoryArgsForCall []struct {
-		name string
+	CreateFileStub        func(name string, content []byte) (int64, error)
+	createFileMutex       sync.RWMutex
+	createFileArgsForCall []struct {
+		name    string
+		content []byte
 	}
-	createDirectoryReturns struct {
+	createFileReturns struct {
 		result1 int64
 		result2 error
 	}
-	createDirectoryReturnsOnCall map[int]struct {
+	createFileReturnsOnCall map[int]struct {
 		result1 int64
 		result2 error
 	}
@@ -375,52 +376,58 @@ func (fake *FakeBucket) DeleteBlobReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeBucket) CreateDirectory(name string) (int64, error) {
-	fake.createDirectoryMutex.Lock()
-	ret, specificReturn := fake.createDirectoryReturnsOnCall[len(fake.createDirectoryArgsForCall)]
-	fake.createDirectoryArgsForCall = append(fake.createDirectoryArgsForCall, struct {
-		name string
-	}{name})
-	fake.recordInvocation("CreateDirectory", []interface{}{name})
-	fake.createDirectoryMutex.Unlock()
-	if fake.CreateDirectoryStub != nil {
-		return fake.CreateDirectoryStub(name)
+func (fake *FakeBucket) CreateFile(name string, content []byte) (int64, error) {
+	var contentCopy []byte
+	if content != nil {
+		contentCopy = make([]byte, len(content))
+		copy(contentCopy, content)
+	}
+	fake.createFileMutex.Lock()
+	ret, specificReturn := fake.createFileReturnsOnCall[len(fake.createFileArgsForCall)]
+	fake.createFileArgsForCall = append(fake.createFileArgsForCall, struct {
+		name    string
+		content []byte
+	}{name, contentCopy})
+	fake.recordInvocation("CreateFile", []interface{}{name, contentCopy})
+	fake.createFileMutex.Unlock()
+	if fake.CreateFileStub != nil {
+		return fake.CreateFileStub(name, content)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	return fake.createDirectoryReturns.result1, fake.createDirectoryReturns.result2
+	return fake.createFileReturns.result1, fake.createFileReturns.result2
 }
 
-func (fake *FakeBucket) CreateDirectoryCallCount() int {
-	fake.createDirectoryMutex.RLock()
-	defer fake.createDirectoryMutex.RUnlock()
-	return len(fake.createDirectoryArgsForCall)
+func (fake *FakeBucket) CreateFileCallCount() int {
+	fake.createFileMutex.RLock()
+	defer fake.createFileMutex.RUnlock()
+	return len(fake.createFileArgsForCall)
 }
 
-func (fake *FakeBucket) CreateDirectoryArgsForCall(i int) string {
-	fake.createDirectoryMutex.RLock()
-	defer fake.createDirectoryMutex.RUnlock()
-	return fake.createDirectoryArgsForCall[i].name
+func (fake *FakeBucket) CreateFileArgsForCall(i int) (string, []byte) {
+	fake.createFileMutex.RLock()
+	defer fake.createFileMutex.RUnlock()
+	return fake.createFileArgsForCall[i].name, fake.createFileArgsForCall[i].content
 }
 
-func (fake *FakeBucket) CreateDirectoryReturns(result1 int64, result2 error) {
-	fake.CreateDirectoryStub = nil
-	fake.createDirectoryReturns = struct {
+func (fake *FakeBucket) CreateFileReturns(result1 int64, result2 error) {
+	fake.CreateFileStub = nil
+	fake.createFileReturns = struct {
 		result1 int64
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeBucket) CreateDirectoryReturnsOnCall(i int, result1 int64, result2 error) {
-	fake.CreateDirectoryStub = nil
-	if fake.createDirectoryReturnsOnCall == nil {
-		fake.createDirectoryReturnsOnCall = make(map[int]struct {
+func (fake *FakeBucket) CreateFileReturnsOnCall(i int, result1 int64, result2 error) {
+	fake.CreateFileStub = nil
+	if fake.createFileReturnsOnCall == nil {
+		fake.createFileReturnsOnCall = make(map[int]struct {
 			result1 int64
 			result2 error
 		})
 	}
-	fake.createDirectoryReturnsOnCall[i] = struct {
+	fake.createFileReturnsOnCall[i] = struct {
 		result1 int64
 		result2 error
 	}{result1, result2}
@@ -441,8 +448,8 @@ func (fake *FakeBucket) Invocations() map[string][][]interface{} {
 	defer fake.copyBlobBetweenBucketsMutex.RUnlock()
 	fake.deleteBlobMutex.RLock()
 	defer fake.deleteBlobMutex.RUnlock()
-	fake.createDirectoryMutex.RLock()
-	defer fake.createDirectoryMutex.RUnlock()
+	fake.createFileMutex.RLock()
+	defer fake.createFileMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

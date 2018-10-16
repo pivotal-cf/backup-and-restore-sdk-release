@@ -391,34 +391,39 @@ var _ = Describe("Bucket", func() {
 		})
 	})
 
-	Describe("CreateDirectory", func() {
-		var bucketName string
-		var bucket gcs.Bucket
-		var err error
+	Describe("CreateFile", func() {
+		var (
+			bucketName   string
+			bucket       gcs.Bucket
+			err          error
+			generationID int64
+			fileName     string
+			fileContent  []byte
+		)
+
+		BeforeEach(func() {
+			bucketName = CreateBucketWithTimestampedName("create_file")
+			bucket, err = gcs.NewSDKBucket(MustHaveEnv("GCP_SERVICE_ACCOUNT_KEY"), bucketName)
+			Expect(err).NotTo(HaveOccurred())
+
+			fileName = "file1"
+			fileContent = []byte("file_content")
+		})
 
 		AfterEach(func() {
 			DeleteBucket(bucketName)
 		})
 
-		Context("creating a directory that does not exist", func() {
-			var generationID int64
+		It("creates the file", func() {
+			generationID, err = bucket.CreateFile(fileName, fileContent)
+			Expect(err).NotTo(HaveOccurred())
 
-			BeforeEach(func() {
-				bucketName = CreateBucketWithTimestampedName("list_blobs")
-				bucket, err = gcs.NewSDKBucket(MustHaveEnv("GCP_SERVICE_ACCOUNT_KEY"), bucketName)
-				Expect(err).NotTo(HaveOccurred())
-			})
-
-			It("creates the directory", func() {
-				generationID, err = bucket.CreateDirectory("dir")
-				Expect(err).NotTo(HaveOccurred())
-
-				blobs, err := bucket.ListBlobs()
-				Expect(err).NotTo(HaveOccurred())
-				Expect(blobs).To(ConsistOf(
-					gcs.Blob{Name: "dir/", GenerationID: generationID},
-				))
-			})
+			blobs, err := bucket.ListBlobs()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(blobs).To(ConsistOf(
+				gcs.Blob{Name: fileName, GenerationID: generationID},
+			))
+			Expect(ReadFile(bucketName, fileName)).To(Equal(string(fileContent)))
 		})
 	})
 })

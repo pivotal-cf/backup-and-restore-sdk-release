@@ -1,6 +1,7 @@
 package gcs_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -37,15 +38,24 @@ var _ = Describe("Backuper", func() {
 
 		Context("when there is no previous backup artifact", func() {
 			Context("and there is a single bucket to be backed up", func() {
-				It("creates a snapshot directory with a copy of the live bucket", func() {
-					blob1 := "file_1_a"
-					blob2 := "file_1_b"
+				var (
+					blob1 string
+					blob2 string
+				)
+
+				BeforeEach(func() {
+					blob1 = "file_1_a"
+					blob2 = "file_1_b"
 					bucket.ListBlobsReturns([]gcs.Blob{
 						{Name: blob1},
 						{Name: blob2},
 					}, nil)
 
 					bucket.CopyBlobWithinBucketReturns(0, nil)
+					bucket.CreateFileReturns(0, nil)
+				})
+
+				It("creates a snapshot directory with a copy of the live bucket and an empty common blobs file", func() {
 
 					err := backuper.CreateLiveBucketSnapshot()
 					Expect(err).NotTo(HaveOccurred())
@@ -58,6 +68,11 @@ var _ = Describe("Backuper", func() {
 					blob, path = bucket.CopyBlobWithinBucketArgsForCall(1)
 					Expect(blob).To(Equal(blob2))
 					Expect(path).To(Equal(fmt.Sprintf("temporary-backup-artifact/%s", blob2)))
+
+					Expect(bucket.CreateFileCallCount()).To(Equal(1))
+					file, contents := bucket.CreateFileArgsForCall(0)
+					Expect(file).To(Equal("temporary-backup-artifact/common_blobs.json"))
+					Expect(contents).To(Equal([]byte("null")))
 				})
 			})
 		})
@@ -77,7 +92,7 @@ var _ = Describe("Backuper", func() {
 				}, nil)
 			})
 
-			It("creates a snapshot directory with a delta between the live and backup buckets", func() {
+			It("creates a snapshot directory with a delta between the live and backup buckets and a common blobs file", func() {
 				err := backuper.CreateLiveBucketSnapshot()
 				Expect(err).NotTo(HaveOccurred())
 
@@ -86,6 +101,12 @@ var _ = Describe("Backuper", func() {
 				blob, path := bucket.CopyBlobWithinBucketArgsForCall(0)
 				Expect(blob).To(Equal(blob2))
 				Expect(path).To(Equal(fmt.Sprintf("temporary-backup-artifact/%s", blob2)))
+
+				Expect(bucket.CreateFileCallCount()).To(Equal(1))
+				file, contents := bucket.CreateFileArgsForCall(0)
+				Expect(file).To(Equal("temporary-backup-artifact/common_blobs.json"))
+				j, _ := json.Marshal([]gcs.Blob{{Name: blob1}})
+				Expect(contents).To(Equal(j))
 			})
 
 			Context("when the delta is empty", func() {
@@ -105,8 +126,9 @@ var _ = Describe("Backuper", func() {
 					Expect(err).NotTo(HaveOccurred())
 
 					Expect(bucket.CopyBlobWithinBucketCallCount()).To(Equal(0))
-					Expect(bucket.CreateDirectoryCallCount()).To(Equal(1))
-					Expect(bucket.CreateDirectoryArgsForCall(0)).To(Equal("temporary-backup-artifact"))
+					Expect(bucket.CreateFileCallCount()).To(Equal(1))
+					filePath, _ := bucket.CreateFileArgsForCall(0)
+					Expect(filePath).To(Equal("temporary-backup-artifact/common_blobs.json"))
 				})
 			})
 		})
@@ -243,7 +265,7 @@ var _ = Describe("Backuper", func() {
 		})
 	})
 
-	FDescribe("CopyBlobsWithinBackupBucket", func() {
+	XDescribe("CopyBlobsWithinBackupBucket", func() {
 		var bucket *fakes.FakeBucket
 		var backupBucket *fakes.FakeBucket
 		var bucketPairID = "droplets"
@@ -274,7 +296,7 @@ var _ = Describe("Backuper", func() {
 				blob1 = "file1"
 				bucket.ListBlobsReturns([]gcs.Blob{
 					{Name: blob1},
-					{Name: "temporary_backup_artifact/"},
+					{Name: "temporary_backup_artifact/common_blobs.json"},
 				}, nil)
 				backupBucket.ListLastBackupBlobsReturns([]gcs.Blob{
 					{Name: "1970_01_01_00_00_00/droplets/" + blob1},

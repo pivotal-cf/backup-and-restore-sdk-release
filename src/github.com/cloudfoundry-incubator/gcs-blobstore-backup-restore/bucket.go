@@ -21,7 +21,7 @@ type Bucket interface {
 	CopyBlobWithinBucket(string, string) (int64, error)
 	CopyBlobBetweenBuckets(Bucket, string, string) (int64, error)
 	DeleteBlob(string) error
-	CreateDirectory(name string) (int64, error)
+	CreateFile(name string, content []byte) (int64, error)
 }
 
 type BucketPair struct {
@@ -156,9 +156,9 @@ func (b SDKBucket) DeleteBlob(blob string) error {
 	return b.client.Bucket(b.name).Object(blob).Delete(b.ctx)
 }
 
-func (b SDKBucket) CreateDirectory(name string) (int64, error) {
-	writer := b.client.Bucket(b.name).Object(name + "/").NewWriter(b.ctx)
-	writer.Write([]byte{})
+func (b SDKBucket) CreateFile(name string, content []byte) (int64, error) {
+	writer := b.client.Bucket(b.name).Object(name).NewWriter(b.ctx)
+	writer.Write(content)
 	err := writer.Close()
 	if err != nil {
 		return -1, err

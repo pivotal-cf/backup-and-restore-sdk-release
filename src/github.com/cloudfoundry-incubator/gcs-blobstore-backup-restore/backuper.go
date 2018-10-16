@@ -1,6 +1,7 @@
 package gcs
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ type Backuper struct {
 }
 
 const liveBucketBackupArtifactName = "temporary-backup-artifact"
+const commonBlobsName = "common_blobs.json"
 
 func NewBackuper(buckets map[string]BucketPair) Backuper {
 	return Backuper{
@@ -20,6 +22,7 @@ func NewBackuper(buckets map[string]BucketPair) Backuper {
 
 func (b *Backuper) CreateLiveBucketSnapshot() error {
 	for _, bucketPair := range b.buckets {
+		var commonBlobs []Blob
 		bucket := bucketPair.Bucket
 
 		blobs, err := bucket.ListBlobs()
@@ -38,18 +41,25 @@ func (b *Backuper) CreateLiveBucketSnapshot() error {
 			inLastBackup[nameParts[len(nameParts)-1]] = true
 		}
 
-		_, err = bucket.CreateDirectory(liveBucketBackupArtifactName)
-		if err != nil {
-			return err
-		}
-
 		for _, blob := range blobs {
-			if !inLastBackup[blob.Name] {
+			if inLastBackup[blob.Name] {
+				commonBlobs = append(commonBlobs, blob)
+			} else {
 				_, err := bucket.CopyBlobWithinBucket(blob.Name, fmt.Sprintf("%s/%s", liveBucketBackupArtifactName, blob.Name))
 				if err != nil {
 					return err
 				}
 			}
+		}
+
+		j, err := json.Marshal(commonBlobs)
+		if err != nil {
+			return err
+		}
+
+		_, err = bucket.CreateFile(liveBucketBackupArtifactName+"/"+commonBlobsName, j)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
