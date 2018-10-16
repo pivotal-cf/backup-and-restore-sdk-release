@@ -19,10 +19,13 @@ var _ = Describe("Backuper", func() {
 		var backuper gcs.Backuper
 
 		const firstBucketName = "first-bucket-name"
+		const secondBucketName = "second-bucket-name"
 
 		BeforeEach(func() {
 			bucket = new(fakes.FakeBucket)
 			bucket.NameReturns(firstBucketName)
+			backupBucket = new(fakes.FakeBucket)
+			backupBucket.NameReturns(secondBucketName)
 
 			backuper = gcs.NewBackuper(map[string]gcs.BucketPair{
 				"first": {
@@ -45,9 +48,9 @@ var _ = Describe("Backuper", func() {
 					bucket.CopyBlobWithinBucketReturns(0, nil)
 
 					err := backuper.CreateLiveBucketSnapshot()
+					Expect(err).NotTo(HaveOccurred())
 
 					Expect(bucket.CopyBlobWithinBucketCallCount()).To(Equal(2))
-					Expect(err).NotTo(HaveOccurred())
 					blob, path := bucket.CopyBlobWithinBucketArgsForCall(0)
 					Expect(blob).To(Equal(blob1))
 					Expect(path).To(Equal(fmt.Sprintf("temporary-backup-artifact/%s", blob1)))
@@ -60,7 +63,52 @@ var _ = Describe("Backuper", func() {
 		})
 
 		Context("when there is a previous backup artifact", func() {
+			var blob1, blob2 string
+			BeforeEach(func() {
+				blob1 = "file_1_a"
+				blob2 = "file_1_b"
+				bucket.ListBlobsReturns([]gcs.Blob{
+					{Name: blob1},
+					{Name: blob2},
+				}, nil)
 
+				backupBucket.ListLastBackupBlobsReturns([]gcs.Blob{
+					{Name: "1970_01_01_00_00_00/droplets/" + blob1},
+				}, nil)
+			})
+
+			It("creates a snapshot directory with a delta between the live and backup buckets", func() {
+				err := backuper.CreateLiveBucketSnapshot()
+				Expect(err).NotTo(HaveOccurred())
+
+				bucket.CopyBlobWithinBucketReturns(0, nil)
+				Expect(bucket.CopyBlobWithinBucketCallCount()).To(Equal(1))
+				blob, path := bucket.CopyBlobWithinBucketArgsForCall(0)
+				Expect(blob).To(Equal(blob2))
+				Expect(path).To(Equal(fmt.Sprintf("temporary-backup-artifact/%s", blob2)))
+			})
+
+			Context("when the delta is empty", func() {
+				BeforeEach(func() {
+					blob1 = "file_1_a"
+					bucket.ListBlobsReturns([]gcs.Blob{
+						{Name: blob1},
+					}, nil)
+
+					backupBucket.ListLastBackupBlobsReturns([]gcs.Blob{
+						{Name: "1970_01_01_00_00_00/droplets/" + blob1},
+					}, nil)
+				})
+
+				It("creates an empty snapshot directory in the live bucket", func() {
+					err := backuper.CreateLiveBucketSnapshot()
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(bucket.CopyBlobWithinBucketCallCount()).To(Equal(0))
+					Expect(bucket.CreateDirectoryCallCount()).To(Equal(1))
+					Expect(bucket.CreateDirectoryArgsForCall(0)).To(Equal("temporary-backup-artifact"))
+				})
+			})
 		})
 
 		Context("when list blobs fails", func() {
@@ -193,5 +241,57 @@ var _ = Describe("Backuper", func() {
 				Expect(err).To(MatchError("ifailed"))
 			})
 		})
+	})
+
+	FDescribe("CopyBlobsWithinBackupBucket", func() {
+		var bucket *fakes.FakeBucket
+		var backupBucket *fakes.FakeBucket
+		var bucketPairID = "droplets"
+
+		var backuper gcs.Backuper
+
+		const firstBucketName = "first-bucket-name"
+
+		BeforeEach(func() {
+			bucket = new(fakes.FakeBucket)
+			bucket.NameReturns(firstBucketName)
+
+			backupBucket = new(fakes.FakeBucket)
+			backupBucket.NameReturns(firstBucketName)
+
+			backuper = gcs.NewBackuper(map[string]gcs.BucketPair{
+				bucketPairID: {
+					Bucket:       bucket,
+					BackupBucket: backupBucket,
+				},
+			})
+		})
+
+		Context("when the delta is empty", func() {
+			var blob1 string
+
+			BeforeEach(func() {
+				blob1 = "file1"
+				bucket.ListBlobsReturns([]gcs.Blob{
+					{Name: blob1},
+					{Name: "temporary_backup_artifact/"},
+				}, nil)
+				backupBucket.ListLastBackupBlobsReturns([]gcs.Blob{
+					{Name: "1970_01_01_00_00_00/droplets/" + blob1},
+				}, nil)
+				backupBucket.CopyBlobBetweenBucketsReturns(0, nil)
+			})
+
+			It("copies over all the common blobs from the previous backup", func() {
+				err := backuper.CopyBlobsWithinBackupBucket()
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(backupBucket.CopyBlobWithinBucketCallCount()).To(Equal(1))
+				blob, path := backupBucket.CopyBlobWithinBucketArgsForCall(0)
+				Expect(blob).To(Equal("1970_01_01_00_00_00/droplets/" + blob1))
+				Expect(path).To(MatchRegexp("\\d{4}_\\d{2}_\\d{2}_\\d{2}_\\d{2}_\\d{2}/%s/file1", bucketPairID))
+			})
+		})
+
 	})
 })

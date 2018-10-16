@@ -21,16 +21,34 @@ func NewBackuper(buckets map[string]BucketPair) Backuper {
 func (b *Backuper) CreateLiveBucketSnapshot() error {
 	for _, bucketPair := range b.buckets {
 		bucket := bucketPair.Bucket
-		blobs, err := bucket.ListBlobs()
 
+		blobs, err := bucket.ListBlobs()
+		if err != nil {
+			return err
+		}
+
+		lastBackupBlobs, err := bucketPair.BackupBucket.ListLastBackupBlobs()
+		if err != nil {
+			return err
+		}
+
+		inLastBackup := make(map[string]bool)
+		for _, blob := range lastBackupBlobs {
+			nameParts := strings.Split(blob.Name, "/")
+			inLastBackup[nameParts[len(nameParts)-1]] = true
+		}
+
+		_, err = bucket.CreateDirectory(liveBucketBackupArtifactName)
 		if err != nil {
 			return err
 		}
 
 		for _, blob := range blobs {
-			_, err := bucket.CopyBlobWithinBucket(blob.Name, fmt.Sprintf("%s/%s", liveBucketBackupArtifactName, blob.Name))
-			if err != nil {
-				return err
+			if !inLastBackup[blob.Name] {
+				_, err := bucket.CopyBlobWithinBucket(blob.Name, fmt.Sprintf("%s/%s", liveBucketBackupArtifactName, blob.Name))
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -81,4 +99,8 @@ func (b *Backuper) TransferBlobsToBackupBucket() (map[string]BackupBucketAddress
 	}
 
 	return backupBuckets, nil
+}
+
+func (b *Backuper) CopyBlobsWithinBackupBucket() error {
+	return nil
 }
