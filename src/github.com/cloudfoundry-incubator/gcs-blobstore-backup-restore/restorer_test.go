@@ -39,26 +39,4 @@ var _ = Describe("Restorer", func() {
 		}, executionStrategy)
 	})
 
-	It("restores the blobs into the live bucket", func() {
-		//backups := map[string]gcs.BucketBackup{
-		//	"first": {
-		//		Name: firstBucketName,
-		//		Blobs: []gcs.Blob{
-		//			{Name: "blob1", GenerationID: 123},
-		//			{Name: "blob2", GenerationID: 234},
-		//		},
-		//	},
-		//	"second": {
-		//		Name: secondBucketName,
-		//		Blobs: []gcs.Blob{
-		//			{Name: "blob3", GenerationID: 345},
-		//		},
-		//	},
-		//}
-		//var expectedBlobs []gcs.Blob
-		//err := restorer.Restore(backups)
-		//
-		//Expect(err).NotTo(HaveOccurred())
-		//Expect(firstBackupBucket.Copy)
-	})
 })
