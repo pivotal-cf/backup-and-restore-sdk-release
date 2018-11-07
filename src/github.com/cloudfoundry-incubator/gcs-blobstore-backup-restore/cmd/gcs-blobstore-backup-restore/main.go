@@ -48,7 +48,13 @@ func main() {
 		err = artifact.Write(backupBucketDirectories)
 		exitOnError(err)
 	} else {
-		panic("restore not implemented")
+		restorer := gcs.NewRestorer(buckets)
+
+		backupArtifact, err := artifact.Read()
+		exitOnError(err)
+
+		err = restorer.Restore(backupArtifact)
+		exitOnError(err)
 	}
 }
 

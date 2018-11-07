@@ -12,6 +12,7 @@ var _ = Describe("Restorer", func() {
 	var secondBucket *fakes.FakeBucket
 	var firstBackupBucket *fakes.FakeBucket
 	var secondBackupBucket *fakes.FakeBucket
+	var backupArtifact map[string]gcs.BackupBucketDirectory
 
 	var restorer gcs.Restorer
 
@@ -19,8 +20,9 @@ var _ = Describe("Restorer", func() {
 	const secondBucketName = "second-bucket-name"
 	const firstBackupBucketName = "first-bucket-name"
 	const secondBackupBucketName = "second-bucket-name"
-
-	var executionStrategy = gcs.NewParallelStrategy()
+	const firstBucketID = "droplets"
+	const secondBucketID = "buildpacks"
+	const timestamp = "2001_01_01_00_00_00"
 
 	BeforeEach(func() {
 		firstBucket = new(fakes.FakeBucket)
@@ -33,10 +35,20 @@ var _ = Describe("Restorer", func() {
 		firstBackupBucket.NameReturns(firstBackupBucketName)
 		secondBackupBucket.NameReturns(secondBackupBucketName)
 
+		backupArtifact = map[string]gcs.BackupBucketDirectory{
+			firstBucketID: {
+				BucketName: firstBackupBucketName,
+				Path:       timestamp + "/" + firstBucketID,
+			},
+			secondBucketID: {
+				BucketName: secondBackupBucketName,
+				Path:       timestamp + "/" + secondBucketID,
+			},
+		}
+
 		restorer = gcs.NewRestorer(map[string]gcs.BucketPair{
 			"first":  {Bucket: firstBucket, BackupBucket: firstBackupBucket},
 			"second": {Bucket: secondBucket, BackupBucket: secondBackupBucket},
-		}, executionStrategy)
+		})
 	})
-
 })

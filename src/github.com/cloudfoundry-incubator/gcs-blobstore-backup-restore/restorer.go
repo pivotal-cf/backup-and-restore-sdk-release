@@ -1,17 +1,15 @@
 package gcs
 
 type Restorer struct {
-	buckets           map[string]BucketPair
-	executionStrategy Strategy
+	buckets map[string]BucketPair
 }
 
-func NewRestorer(buckets map[string]BucketPair, executionStrategy Strategy) Restorer {
+func NewRestorer(buckets map[string]BucketPair) Restorer {
 	return Restorer{
-		buckets:           buckets,
-		executionStrategy: executionStrategy,
+		buckets: buckets,
 	}
 }
 
-func (r Restorer) Restore(backups map[string]BucketBackup) error {
+func (r Restorer) Restore(backupArtifact map[string]BackupBucketDirectory) error {
 	return nil
 }
