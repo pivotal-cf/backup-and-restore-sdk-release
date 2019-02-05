@@ -8,6 +8,7 @@ import (
 //go:generate counterfeiter -o fakes/fake_artifact.go . Artifact
 type Artifact interface {
 	Write(map[string]BucketBackup) error
+	Load() (map[string]BucketBackup, error)
 }
 
 type artifact struct {
@@ -33,4 +34,20 @@ func (a artifact) Write(backups map[string]BucketBackup) error {
 	}
 
 	return ioutil.WriteFile(a.path, filesContents, 0644)
+}
+
+func (a artifact) Load() (map[string]BucketBackup, error) {
+	content, err := ioutil.ReadFile(a.path)
+	if err != nil {
+		return nil, err
+	}
+
+	bucketBackups := new(map[string]BucketBackup)
+
+	err = json.Unmarshal(content, &bucketBackups)
+	if err != nil {
+		return nil, err
+	}
+
+	return *bucketBackups, nil
 }
