@@ -53,6 +53,55 @@ var _ = Describe("GCS Blobstore System Tests", func() {
 			})
 			runTestWithBlobs(1)
 		})
+		Context("when a live bucket and a backup bucket are configured twice", func() {
+			BeforeEach(func() {
+				gcsClient.WriteBlobToBucket(bucket, "test_file_0_", "some-blob")
+			})
+
+			It("creates a backup without doubling the size", func() {
+				By("successfully running a backup", func() {
+					instance.RunSuccessfully("sudo BBR_ARTIFACT_DIRECTORY=" + instanceArtifactDirPath +
+						" /var/vcap/jobs/gcs-blobstore-backup-restorer/bin/bbr/backup")
+				})
+
+				By("creating a complete remote backup", func() {
+					backupBucketFolders := gcsClient.ListDirsFromBucket(backupBucket)
+					Expect(backupBucketFolders).To(MatchRegexp(
+						".*\\d{4}_\\d{2}_\\d{2}_\\d{2}_\\d{2}_\\d{2}/"))
+
+					backupBucketContent := getRecursiveContentsOfBackupBucket(gcsClient, backupBucketFolders)
+					fileCount := 0
+					for _, line := range strings.Split(backupBucketContent, "\n") {
+						if strings.Contains(line, "test_file_0_") {
+							fileCount++
+						}
+					}
+					Expect(fileCount).To(Equal(1))
+				})
+
+				By("generating a complete backup artifact", func() {
+					session := instance.Run(fmt.Sprintf("cat %s/%s", instanceArtifactDirPath, "blobstore.json"))
+					Expect(session).Should(gexec.Exit(0))
+					fileContents := string(session.Out.Contents())
+
+					Expect(fileContents).To(ContainSubstring("\"buildpacks-droplets\":{"))
+					Expect(fileContents).To(ContainSubstring("\"bucket_name\":\"" + backupBucket + "\""))
+					Expect(fileContents).To(MatchRegexp(
+						"\"path\":\"\\d{4}_\\d{2}_\\d{2}_\\d{2}_\\d{2}_\\d{2}\\/buildpacks-droplets\""))
+				})
+
+				By("restoring from a backup artifact", func() {
+					gcsClient.DeleteBlobInBucket(bucket, "**/test_file_0_")
+
+					instance.RunSuccessfully("sudo BBR_ARTIFACT_DIRECTORY=" + instanceArtifactDirPath +
+						" /var/vcap/jobs/gcs-blobstore-backup-restorer/bin/bbr/restore")
+
+					liveBucketContent := getRecursiveContentsOfBackupBucket(gcsClient, bucket)
+					Expect(liveBucketContent).To(ContainSubstring("test_file_0_"))
+
+				})
+			})
+		})
 	})
 
 })
@@ -105,4 +154,10 @@ func getContentsOfBackupBucket(gcsClient GCSClient, backupBucketTimestampedFolde
 	backupFolder = strings.TrimSuffix(backupFolder, "\n")
 	backupFolder = backupFolder + bucketID
 	return gcsClient.ListDirsFromBucket(backupFolder)
+}
+
+func getRecursiveContentsOfBackupBucket(gcsClient GCSClient, backupBucketTimestampedFolder string) string {
+	backupFolder := strings.TrimPrefix(backupBucketTimestampedFolder, "gs://")
+	backupFolder = strings.TrimSuffix(backupFolder, "\n")
+	return gcsClient.ListRecursiveDirsFromBucket(backupFolder)
 }

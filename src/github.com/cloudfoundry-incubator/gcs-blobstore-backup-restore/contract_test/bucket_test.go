@@ -24,6 +24,7 @@ var _ = Describe("Bucket", func() {
 			Expect(buckets).To(HaveLen(1))
 			Expect(buckets["droplets"].LiveBucket.Name()).To(Equal("droplets-bucket"))
 			Expect(buckets["droplets"].BackupBucket.Name()).To(Equal("backup-droplets-bucket"))
+			Expect(buckets["droplets"].IDs).To(Equal([]string{"droplets"}))
 		})
 
 		Context("when providing invalid service account key", func() {
@@ -37,6 +38,62 @@ var _ = Describe("Bucket", func() {
 
 				_, err := gcs.BuildBucketPairs("not-valid-json", config)
 				Expect(err).To(HaveOccurred())
+			})
+		})
+
+		Context("when providing two configs with the same live and backup bucket setup", func() {
+			It("de-duplicates the bucket pairs", func() {
+				config := map[string]gcs.Config{
+					"droplets": {
+						BucketName:       "droplets-bucket",
+						BackupBucketName: "backup-droplets-bucket",
+					},
+					"buildpacks": {
+						BucketName:       "droplets-bucket",
+						BackupBucketName: "backup-droplets-bucket",
+					},
+				}
+
+				buckets, err := gcs.BuildBucketPairs(MustHaveEnv("GCP_SERVICE_ACCOUNT_KEY"), config)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(buckets).To(HaveLen(1))
+				Expect(buckets["buildpacks-droplets"].LiveBucket.Name()).To(Equal("droplets-bucket"))
+				Expect(buckets["buildpacks-droplets"].BackupBucket.Name()).To(Equal("backup-droplets-bucket"))
+				Expect(buckets["buildpacks-droplets"].IDs).To(HaveLen(2))
+				Expect(buckets["buildpacks-droplets"].IDs).To(ContainElement("droplets"))
+				Expect(buckets["buildpacks-droplets"].IDs).To(ContainElement("buildpacks"))
+			})
+		})
+
+		Context("when providing three configs with the same live and backup bucket setup", func() {
+			It("de-duplicates the bucket pairs", func() {
+				config := map[string]gcs.Config{
+					"a": {
+						BucketName:       "a-bucket",
+						BackupBucketName: "backup-a-bucket",
+					},
+					"b": {
+						BucketName:       "a-bucket",
+						BackupBucketName: "backup-a-bucket",
+					},
+					"c": {
+						BucketName:       "a-bucket",
+						BackupBucketName: "backup-a-bucket",
+					},
+				}
+
+				buckets, err := gcs.BuildBucketPairs(MustHaveEnv("GCP_SERVICE_ACCOUNT_KEY"), config)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(buckets).To(HaveLen(1))
+				fmt.Println(buckets)
+				Expect(buckets["a-b-c"].LiveBucket.Name()).To(Equal("a-bucket"))
+				Expect(buckets["a-b-c"].BackupBucket.Name()).To(Equal("backup-a-bucket"))
+				Expect(buckets["a-b-c"].IDs).To(HaveLen(3))
+				Expect(buckets["a-b-c"].IDs).To(ContainElement("a"))
+				Expect(buckets["a-b-c"].IDs).To(ContainElement("b"))
+				Expect(buckets["a-b-c"].IDs).To(ContainElement("c"))
 			})
 		})
 	})
