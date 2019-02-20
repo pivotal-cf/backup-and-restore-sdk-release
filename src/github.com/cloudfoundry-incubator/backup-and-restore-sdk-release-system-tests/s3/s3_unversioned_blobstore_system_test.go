@@ -32,7 +32,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("S3 unversioned backup and restore", func() {
+var _ = FDescribe("S3 unversioned backup and restore", func() {
 	var (
 		region                  string
 		bucket                  string
@@ -288,7 +288,7 @@ var _ = Describe("S3 unversioned backup and restore", func() {
 		})
 	})
 
-	Context("when there are a larger number of files", func() {
+	XContext("when there are a larger number of files", func() {
 
 		BeforeEach(func() {
 			var err error
@@ -339,8 +339,8 @@ var _ = Describe("S3 unversioned backup and restore", func() {
 		})
 	})
 
-	Context("when post-backup-unlock is called with an old version of bbr", func() {
-		It("returns an error", func() {
+	FContext("when using an old version of bbr", func() {
+		It("fail in post-backup-unlock", func() {
 			backuperInstance = JobInstance{
 				Deployment: MustHaveEnv("BOSH_DEPLOYMENT"),
 				Name:       "s3-unversioned-backuper",
@@ -354,7 +354,7 @@ var _ = Describe("S3 unversioned backup and restore", func() {
 		})
 	})
 
-	Context("when post-backup-unlock is called by backu-cleanup", func() {
+	Context("when post-backup-unlock is called by backup-cleanup", func() {
 		It("cleans up the existing-backup-blobs.json", func() {
 
 			backuperInstance = JobInstance{
@@ -372,6 +372,47 @@ var _ = Describe("S3 unversioned backup and restore", func() {
 			Expect(session).To(Exit())
 			Expect(string(session.Buffer().Contents())).To(ContainSubstring("No such file or directory"))
 
+		})
+	})
+
+	FContext("Metadata", func() {
+		It("fails when called with an old version of bbr that does not export BBR_VERSION", func() {
+			backuperInstance = JobInstance{
+				Deployment: MustHaveEnv("BOSH_DEPLOYMENT"),
+				Name:       "s3-unversioned-backuper",
+				Index:      "0",
+			}
+
+			session := backuperInstance.Run("/var/vcap/jobs/s3-unversioned-blobstore-backup-restorer/bin/bbr/metadata")
+			Expect(session).To(Exit())
+			Expect(session.ExitCode()).NotTo(Equal(0))
+			Expect(string(session.Buffer().Contents())).To(ContainSubstring("Error: BBR_VERSION is not set, please ensure you are using the latest version of bbr"))
+		})
+
+		It("fails when called with an old version of bbr", func() {
+			backuperInstance = JobInstance{
+				Deployment: MustHaveEnv("BOSH_DEPLOYMENT"),
+				Name:       "s3-unversioned-backuper",
+				Index:      "0",
+			}
+
+			session := backuperInstance.Run("BBR_VERSION=1.3.2 /var/vcap/jobs/s3-unversioned-blobstore-backup-restorer/bin/bbr/metadata")
+			Expect(session).To(Exit())
+			Expect(session.ExitCode()).NotTo(Equal(0))
+			Expect(string(session.Buffer().Contents())).To(ContainSubstring("Error: BBR version must be 1.4.0 or greater"))
+		})
+
+		It("succeeds when called with a version of bbr 1.4.0 or greater", func() {
+			backuperInstance = JobInstance{
+				Deployment: MustHaveEnv("BOSH_DEPLOYMENT"),
+				Name:       "s3-unversioned-backuper",
+				Index:      "0",
+			}
+
+			session := backuperInstance.Run("BBR_VERSION=1.4.0 /var/vcap/jobs/s3-unversioned-blobstore-backup-restorer/bin/bbr/metadata")
+			Expect(session).To(Exit())
+			Expect(session.ExitCode()).To(Equal(0))
+			Expect(string(session.Buffer().Contents())).To(ContainSubstring("---"))
 		})
 	})
 })

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -eu
+
+if [ -z ${BBR_VERSION+x} ]
+then
+  echo "Error: BBR_VERSION is not set, please ensure you are using the latest version of bbr"
+  exit 1
+fi
+
+
+major=$(echo $BBR_VERSION | cut -f 1 -d '.')
+minor=$(echo $BBR_VERSION | cut -f 2 -d '.')
+patch=$(echo $BBR_VERSION | cut -f 3 -d '.')
+
+if ! (( major >= 1 )); then
+   echo "Error: BBR version must be 1.4.0 or greater"
+   exit 1
+fi
+
+# if ! (( minor >= 4 )); then
+#    echo "Error: BBR version must be 1.4.0 or greater"
+#    exit 1
+# fi
+#
+# if ! (( patch >= 0 )); then
+#    echo "Error: BBR version must be 1.4.0 or greater"
+#    exit 1
+# fi
+
+
+echo "---"
