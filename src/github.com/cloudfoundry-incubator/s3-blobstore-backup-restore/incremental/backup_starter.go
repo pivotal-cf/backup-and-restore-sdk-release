@@ -7,6 +7,7 @@ import (
 type BackupToStart struct {
 	BucketPair            BackupBucketPair
 	BackupDirectoryFinder BackupDirectoryFinder
+	SameAsBucketID        string
 }
 
 //go:generate counterfeiter -o fakes/fake_clock.go . Clock
